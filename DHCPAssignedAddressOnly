@@ -1,0 +1,34 @@
+# Check if sniffer is running
+:local isrunning [tool sniffer get value-name=running]
+if (isrunning = false) do={
+
+# start the sniffing tool
+tool sniffer start direction=tx interface=ether1 ip-protocol=udp port=68 operator-between-entries=and
+
+# delay for sniffed packets to get captured
+:delay 5s
+}
+
+# Check if the there are sniffed packets
+if ([:len [tool sniffer packet find]] > 0) do={
+ :local ipport [tool sniffer packet get number=1 value-name=dst-address]
+ :local freship [:pick $ipport 0 [:find $ipport ":"]]
+ :local newsrcaddress "!$freship"
+
+# Get the old ip from the rule
+ :local oldipstring [interface bridge filter get number=[find where comment~"id=2260."] value-name=src-address]
+ :local oldip [:pick $oldipstring 0 [:find $oldipstring "/"]]
+
+# Check if the newly learned ip is not the same as old
+ if ($newsrcaddress != $oldip) do={
+
+# Inject the newly learned ip address to the rule
+ /interface bridge filter set number=[find comment~"id=2260."] src-address=[:put "$newsrcaddress/32"]
+
+ }
+}
+# Stop the sniffing tool
+tool sniffer stop
+:delay 500ms
+# start the sniffing 
+tool sniffer start direction=tx interface=ether1 ip-protocol=udp port=68 operator-between-entries=and
