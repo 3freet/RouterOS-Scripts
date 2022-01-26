@@ -1,0 +1,42 @@
+# define interface
+:local int "ether1"
+
+# if more than one host exist in the hosts table, disable the allow rule
+if ([:len [/interface bridge host find where on-interface=$int !local]] > 1) do={
+  /interface bridge filter disable [find comment~"id=2250."]
+  :log info "Found more than one mac addresses connected to ethernet interface. Disableing access..."
+
+} else={
+
+###########The following is old and deprecated#######
+#
+## get full host string from hosts table
+#:local macstr [:tostr [/interface bridge host print as-value where on-interface=$int !local]]
+#
+## truncate to a fresh mac address
+#:local macadd [:pick $macstr ([:find $macstr "mac-ad"]+12) ([:find $macstr ";on-interface"])]
+#
+###########End##########
+#
+# get the mac address of the only device connected
+ :local newmac [interface bridge host get number=[find where on-interface=ether1 !local] value-name=mac-address]
+
+# Check and define what the old mac address is and remove the address mask
+ :local oldmacstring [interface bridge filter get number=[find where comment~"id=2250."] value-name=src-mac-address]
+ :local oldmac [:pick $oldmacstring 0 [:find $oldmacstring "/"]]
+
+# Check if the newly captured mac-address is not the same as the one found on the allow rule
+ if ($oldmac != $newmac) do={
+
+# inject mac address to the alow rule
+  /interface bridge filter set number=[find comment~"id=2250."] src-mac-address=[:put "$newmac/FF:FF:FF:FF:FF:FF"]
+ }
+
+# Check if the allow rule is disabled
+ :local chkdisabled [/interface bridge filter get number=[find comment~"id=2250."] disabled]
+ if (chkdisabled = true) do={
+
+# Enable the allow rule
+  /interface bridge filter enable [find comment~"id=2250."]
+  } 
+}
